@@ -1,0 +1,12 @@
+switch_boiler_powerwiz_limiter:
+  name: Boiler (limiter)
+  icon: mdi:home-lightning-bolt-outline
+climate_living_room_powerwiz_limiter:
+  name: Convector heater living room (limiter)
+  icon: mdi:home-lightning-bolt-outline
+switch_boiler_powerwiz_saver:
+  name: Boiler (saver)
+  icon: mdi:home-lightning-bolt-outline
+climate_living_room_powerwiz_saver:
+  name: Convector heater living room (saver)
+  icon: mdi:home-lightning-bolt-outline

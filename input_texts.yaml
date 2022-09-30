@@ -1,0 +1,3 @@
+powerwiz_limiter_top_3_hours_current_month:
+  name: 3 hours with most power usage current month
+  max: 30

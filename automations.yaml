@@ -1,0 +1,267 @@
+
+- id: "16358032164123"
+  alias: Powerwiz - Limiter - Update powerwiz_limiter_top_3_hours_current_month
+  description: ""
+  trigger:
+    - platform: time_pattern
+      minutes: "59"
+      seconds: "59"
+  condition: []
+  variables:
+    max3:
+      "{% set max3 = states('input_text.powerwiz_limiter_top_3_hours_current_month') %} 
+       {{ ('[]' if (max3 == 'unknown' or states.input_text.powerwiz_limiter_top_3_hours_current_month.last_updated.month != now().month) else max3)|from_json }}"
+    today_max:
+      "{% set today = states('input_number.powerwiz_limiter_todays_top_hourly_consumption')|float(default=0)
+       if now().hour > 0 else 0 %} {% set this_hour = states('sensor.powerwiz_hour')|float(default=0) %} 
+       {{ ([ today, this_hour ]|sort(1))[0]|round(3) }}"
+  action:
+    - service: input_number.set_value
+      data:
+        value: "{{ today_max }}"
+      target:
+        entity_id: input_number.powerwiz_limiter_todays_top_hourly_consumption
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ now().hour == 23 }}"
+          sequence:
+            - service: input_text.set_value
+              data:
+                value: "{{ (((max3 + [ today_max ])|sort(1))[:3])|to_json}}"
+              target:
+                entity_id: input_text.powerwiz_limiter_top_3_hours_current_month
+            - service: input_number.set_value
+              data:
+                value: 0
+              target:
+                entity_id: input_number.powerwiz_limiter_todays_top_hourly_consumption
+        - conditions:
+            - condition: template
+              value_template:
+                "{{ now().month != states.input_text.powerwiz_limiter_top_3_hours_current_month.last_updated.month }}"
+          sequence:
+            - service: input_text.set_value
+              data:
+                value: "[]"
+              target:
+                entity_id: input_text.powerwiz_limiter_top_3_hours_current_month
+
+- id: "16358034764123"
+  alias: Powerwiz - Limiter - Limit power to get below powerwiz_limiter_max_allowed_consumption
+  description: ""
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: /10
+  condition: []
+  action:
+    - repeat:
+        while:
+          - condition: template
+            value_template: >
+              {{ (states.sensor.powerwiz_hour_estimate.state|float) > (states.input_number.powerwiz_limiter_max_allowed_consumption.state|float - 100.0) or (states.sensor.powerwiz_limiter_top_3_hours_current_month_estimated_average.state|float* 1000) > (states.input_number.powerwiz_limiter_max_allowed_consumption.state|float - 100.0) }}
+          - condition: template
+            value_template: "{{ (states.sensor.powerwiz_limiters.state|float(default=0.0)) > 0 }}"
+          - condition: template
+            value_template: '{{ repeat.index <= 20 }}'
+        sequence:
+          - service: homeassistant.turn_on
+            target:
+              entity_id: >
+                {% set power_limiters = {
+                    'sensor.boiler_power': 'switch.boiler',
+                    'sensor.convector_heater_living_room_power': 'climate.living_room' } %}
+                {% set warmup_duration = states('input_number.powerwiz_min_minutes_on')|int(default=0) %}
+                {% set warmup_ok = now() - timedelta(minutes = warmup_duration) %}
+                {% set power_limiter_id = states|selectattr('entity_id', 'in', power_limiters.keys())|selectattr('state', '!=', 'unavailable')|selectattr('state', '>', '0.0')|map(attribute='entity_id')|list|random|string %}
+                {% set power_limiter_consumption = states(power_limiter_id) |int(default=0) %}
+                {% set power_limiter_input_boolean = states |selectattr('entity_id', 'in', 'input_boolean.' + power_limiters[power_limiter_id] |replace('.','_', 1) + '_powerwiz_limiter') |selectattr('state', 'in', 'off') | selectattr('last_changed', '<', warmup_ok) | map(attribute='entity_id') |list %} 
+                {% if power_limiter_input_boolean |length > 0 %} 
+                  {{ power_limiter_input_boolean |first |string }} 
+                {% else %} 
+                  {{ "" }} 
+                {% endif %}
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 10
+              milliseconds: 0
+
+- id: "16358032167290"
+  alias:
+    Powerwiz - Limiter - Restore power to devices after exceeding powerwiz_limiter_max_minutes_off
+    time
+  description: ""
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: /1
+  condition: []
+  action:
+    - repeat:
+        while:
+          - condition: template
+            value_template:
+              "{% set shutoff_duration = states('input_number.powerwiz_limiter_max_minutes_off')|int(default=0)
+              %} {% set power_on_from = now() - timedelta(minutes = shutoff_duration)
+              %} {{ states | selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_limiter')
+              |selectattr('state', 'in', 'on') | selectattr('last_changed', '<',
+              power_on_from) | map(attribute='entity_id') | list | length > 0 }}"
+          - condition: template
+            value_template: '{{ repeat.index <= 20 }}'
+        sequence:
+          - service: input_boolean.turn_off
+            data:
+              entity_id:
+                "{% set shutoff_duration = states('input_number.powerwiz_limiter_max_minutes_off')|int(default=0)
+                %} {% set power_on_from = now() - timedelta(minutes = shutoff_duration)
+                %} {% set enable_id = states | selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_limiter')
+                |selectattr('state', 'in', 'on') | selectattr('last_changed',
+                '<', power_on_from) | map(attribute='entity_id') | list |random |string
+                %} {{ enable_id }}"
+
+- id: "16358032143578"
+  alias: Powerwiz - Saver - Save power in powersaving time
+  description: ""
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.powerwiz_saver_recommended
+      from: "off"
+      to: "on"
+    - platform: time_pattern
+      minutes: /1
+  condition:   
+    - condition: state
+      entity_id: binary_sensor.powerwiz_saver_recommended
+      state: "on"
+  action:
+    - repeat:
+        while:
+          - condition: template
+            value_template: "{{ (states.sensor.powerwiz_savers.state|float(default=0.0)) > 0 }}"
+          - condition: state
+            entity_id: binary_sensor.powerwiz_saver_recommended
+            state: "on"
+          - condition: template
+            value_template: '{{ repeat.index <= 20 }}'
+        sequence:
+          - service: homeassistant.turn_on
+            target:
+              entity_id: >
+                {% set power_savers = {
+                    'sensor.boiler_power': 'switch.boiler',
+                    'sensor.convector_heater_living_room_power': 'climate.living_room' } %}
+                {% set warmup_duration = states('input_number.powerwiz_min_minutes_on')|int(default=0) %}
+                {% set warmup_ok = now() - timedelta(minutes = warmup_duration) %}
+                {% set power_saver_id = states|selectattr('entity_id', 'in', power_savers.keys())|selectattr('state', '!=', 'unavailable')|selectattr('state', '>', '0.0')|map(attribute='entity_id')|list|random|string %}
+                {% set power_saver_input_boolean = states |selectattr('entity_id', 'in', 'input_boolean.' + power_savers[power_saver_id] |replace('.','_', 1) + '_powerwiz_saver') |selectattr('state', 'in', 'off') | selectattr('last_changed', '<', warmup_ok) | map(attribute='entity_id') |list %} 
+                {% if power_saver_input_boolean |length > 0 %} 
+                  {{ power_saver_input_boolean |first |string }} 
+                {% else %} 
+                  {{ "" }} 
+                {% endif %}
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 10
+              milliseconds: 0
+
+- id: "16358032144187"
+  alias: Powerwiz - Saver - Restore power to devices after powersaving time
+  description: ""
+  mode: single
+  trigger:
+    - platform: state
+      entity_id:
+        - binary_sensor.powerwiz_saver_recommended
+      from: "on"
+      to: "off"
+  condition: []
+  action:
+    - repeat:
+        while:
+          - condition: template
+            value_template: "{{ ( states | selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_saver') |selectattr('state', 'in', 'on') | map(attribute='entity_id') | list ) |length > 0 }}"
+          - condition: state
+            entity_id: binary_sensor.powerwiz_saver_recommended
+            state: "off"
+        sequence:
+          - service: homeassistant.turn_off
+            target:
+              entity_id: >
+                {{ states | selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_saver') |selectattr('state', 'in', 'on') | map(attribute='entity_id') | list |first }}
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 10
+              milliseconds: 0
+
+                
+- id: "16384562164123"
+  alias: Powerwiz - Turn on power limited or powersaving device
+  description: ""
+  mode: single
+  trigger:
+    - platform: event
+      event_type: state_changed
+  condition:
+    - condition: template
+      value_template:
+        '{{ "input_boolean." in trigger.event.data.entity_id and ("_powerwiz_limiter" in trigger.event.data.entity_id or "_powerwiz_saver" in trigger.event.data.entity_id) and trigger.event.data.old_state.state == "on" and trigger.event.data.new_state.state == "off" }}'
+  action:
+    - service: homeassistant.turn_on
+      target:
+        entity_id:
+          "{{ trigger.event.data.entity_id.split('input_boolean.')[1].split('_powerwiz_limiter')[0].split('_powerwiz_saver')[0]|replace('_', '.', 1) }}"
+
+- id: "16358037155123"
+  alias: Powerwiz - Limiter -Turn off limited or powersaving device
+  description: ""
+  mode: single
+  trigger:
+    - platform: event
+      event_type: state_changed
+  condition:
+    - condition: template
+      value_template:
+        '{{ "input_boolean." in trigger.event.data.entity_id and ("_powerwiz_limiter" in trigger.event.data.entity_id or "_powerwiz_saver" in trigger.event.data.entity_id) and trigger.event.data.old_state.state == "off" and trigger.event.data.new_state.state == "on" }}'
+  action:
+    - service: homeassistant.turn_off
+      target:
+        entity_id:
+          "{{ trigger.event.data.entity_id.split('input_boolean.')[1].split('_powerwiz_limiter')[0].split('_powerwiz_saver')[0]|replace('_', '.', 1) }}"
+
+
+- id: "1663828102968"
+  alias: Powerwiz - Powersaver - Notify start
+  description: ""
+  trigger:
+    - platform: state
+      entity_id:
+        - binary_sensor.powerwiz_saver_recommended
+      from: "off"
+      to: "on"
+  condition: []
+  action:
+    - service: notify.mobile_app_<YOURMOBILE>
+      data:
+        message: Powerwiz - powersaver started
+  mode: single
+
+- id: "1663828243602"
+  alias: Powerwiz - Powersaver - Notify stop
+  description: ""
+  trigger:
+    - platform: state
+      entity_id:
+        - binary_sensor.powerwiz_saver_recommended
+      from: "on"
+      to: "off"
+  condition: []
+  action:
+    - service: notify.mobile_app_<YOURMOBILE>
+      data:
+        message: Powerwiz - powersaving ended
+  mode: single

@@ -1,0 +1,120 @@
+binary_sensor:
+  - name: Powerwiz saver within expensive hours
+    unique_id: powerwiz_saver_within_expensive_hours
+    state: >
+      {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
+      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
+      {% set expensive_hour = expensive_hours |selectattr('start', '<=', now()) | selectattr('end', '>=', now()) |list %}
+      {% set expensive_hour_bool = expensive_hour |length > 0 %}
+      {{ expensive_hour_bool }}
+
+  - name: Powerwiz saver recommended
+    unique_id: powerwiz_saver_recommended
+    state: >
+      {% set aux = states("sensor.time") %}
+      {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
+      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
+      {% set expensive_hour = expensive_hours |selectattr('start', '<=', now()) | selectattr('end', '>=', now()) |list %}
+      {% set expensive_hour_bool = expensive_hour |length > 0 %}
+
+      {% if expensive_hour_bool %}
+        {% set saving_threshold_percent = (states.input_number.powerwiz_saver_threshold_percent.state |float(default=5.0)) / 100.0 %}
+        {% set saving_threshold_currency = states.input_number.powerwiz_saver_threshold_currency.state |float(default=0.1) %}
+        {% set non_power_saving_hours = 24-power_saving_hours %}
+        {% set cheap_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value'))[:non_power_saving_hours] %}
+        {% set mean_cheap_price = (cheap_hours |map(attribute='value')|list)[(cheap_hours|length / 2)|int] %}
+        {% set expensive_hour_cost = (expensive_hour |map(attribute='value')|list)[0]|float(default=0) %}
+        {% set expensive_hour_above_threshold_percent = (expensive_hour_cost / mean_cheap_price) > (1.0 + saving_threshold_percent) %}
+        {% set expensive_hour_above_threshold_currency = (expensive_hour_cost - saving_threshold_currency) > mean_cheap_price  %}
+        {{ expensive_hour_bool and expensive_hour_above_threshold_percent and expensive_hour_above_threshold_currency }}
+      {% else %}
+        False
+      {% endif %}
+
+  - name: Powerwiz power being reduced
+    unique_id: powerwiz_power_being_reduced
+    state: >
+      {{ (states |selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_limiter') |selectattr('state', 'in', 'on')|list)|length > 0 or (states |selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_saver') |selectattr('state', 'in', 'on')|list)|length > 0}}
+
+sensor:
+  - name: powerwiz_current_usage
+    unit_of_measurement: W
+    device_class: power
+    state: >
+      {{ states('sensor.power_tomasjordvegen_129')|int(default=0) }}
+
+  - name: powerwiz_hour_estimate
+    unit_of_measurement: "kWh"
+    state: >
+      {{ states('sensor.estimated_consumption_current_hour_tomasjordvegen_129')|int(default=0) }}
+
+  - name: powerwiz_hour
+    unit_of_measurement: "kWh"
+    state: >
+      {{ states('sensor.accumulated_consumption_current_hour_tomasjordvegen_129')|int(default=0) }}
+
+  - name: powerwiz_limiters
+    unit_of_measurement: W
+    device_class: power
+    state: >
+      {{ states('sensor.boiler_power')|int(default=0)
+        + states('sensor.convector_heater_living_room_power')|int(default=0) }}
+
+  - name: powerwiz_savers
+    unit_of_measurement: W
+    device_class: power
+    state: >
+      {{ states('sensor.boiler_power')|int(default=0)
+        + states('sensor.convector_heater_living_room_power')|int(default=0) }}
+
+  - name: powerwiz_monitored
+    unit_of_measurement: W
+    device_class: power
+    state: >
+      {{ states('sensor.washing_machine_power')|int(default=0)
+        + states('sensor.dryer_power')|int(default=0)
+        + states('sensor.ups_1_power')|int(default=0)
+        + states('sensor.ups_2_power')|int(default=0) }}
+
+  - name: powerwiz_limiter_top_3_hours_current_month_estimated_average
+    unit_of_measurement: "kWh"
+    state: >
+      {% set max3 = states('input_text.powerwiz_limiter_top_3_hours_current_month')|from_json %}
+      {% set now = states.sensor.powerwiz_hour_estimate.state|float %}
+      {% set max3 = ((max3 + [now])|sort(1))[:3] %}
+      {% set v = namespace (sum=0) %}
+      {% for i in range (max3|length) %}
+      {%   set v.sum = v.sum + max3[i] %}
+      {% endfor %}
+      {{ (v.sum / max3|length)|round(3) }}
+
+  - name: Powerwiz saver median cheapest
+    unique_id: powerwiz_saver_median_cheapest
+    state: >
+      {% set aux = states("sensor.time") %}
+      {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
+      {% set non_power_saving_hours = 24-power_saving_hours %}
+      {% set cheap_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value'))[:non_power_saving_hours] %}
+      {% set median_cheap_price = (cheap_hours |map(attribute='value')|list)[(cheap_hours|length / 2)|int] %}
+      {{ median_cheap_price }}
+
+  - name: Powerwiz saver current_hour
+    unique_id: powerwiz_saver_current_hour
+    state: >
+      {% set aux = states("sensor.time") %}
+      {% set current_hour = state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today') |selectattr('start', '<=', now()) |selectattr('end', '>=', now()) |map(attribute='value') |list %}
+      {% if current_hour |length > 0 %}
+      {{ current_hour[0] }}
+      {% endif  %}
+
+  - name: Powerwiz saver most expensive hours price
+    unique_id: powerwiz_saver_most_expensive_hours_price
+    state: >
+      {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
+      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
+      {% set hours = namespace(list="") %}
+      {% for result in expensive_hours %}
+        {% if hours.list != "" %} {% set hours.list = hours.list ~ ", " %} {% endif %}
+        {% set hours.list = hours.list ~ result.value ~ ' NOK (' ~ result.start.strftime("%H") ~ '-' ~ result.end.strftime("%H") ~ ')' %}
+      {% endfor %}
+      {{ hours.list }}
