@@ -79,8 +79,6 @@
                 {% set power_limiter_input_boolean = states |selectattr('entity_id', 'in', 'input_boolean.' + power_limiters[power_limiter_id] |replace('.','_', 1) + '_powerwiz_limiter') |selectattr('state', 'in', 'off') | selectattr('last_changed', '<', warmup_ok) | map(attribute='entity_id') |list %} 
                 {% if power_limiter_input_boolean |length > 0 %} 
                   {{ power_limiter_input_boolean |first |string }} 
-                {% else %} 
-                  {{ "" }} 
                 {% endif %}
           - delay:
               hours: 0
@@ -159,8 +157,6 @@
                 {% set power_saver_input_boolean = states |selectattr('entity_id', 'in', 'input_boolean.' + power_savers[power_saver_id] |replace('.','_', 1) + '_powerwiz_saver') |selectattr('state', 'in', 'off') | selectattr('last_changed', '<', warmup_ok) | map(attribute='entity_id') |list %} 
                 {% if power_saver_input_boolean |length > 0 %} 
                   {{ power_saver_input_boolean |first |string }} 
-                {% else %} 
-                  {{ "" }} 
                 {% endif %}
           - delay:
               hours: 0
@@ -202,7 +198,8 @@
 - id: "16384562164123"
   alias: Powerwiz - Turn on power limited or powersaving device
   description: ""
-  mode: single
+  mode: queued
+  max: 20
   trigger:
     - platform: event
       event_type: state_changed
@@ -217,9 +214,10 @@
           "{{ trigger.event.data.entity_id.split('input_boolean.')[1].split('_powerwiz_limiter')[0].split('_powerwiz_saver')[0]|replace('_', '.', 1) }}"
 
 - id: "16358037155123"
-  alias: Powerwiz - Limiter -Turn off limited or powersaving device
+  alias: Powerwiz - Limiter - Turn off limited or powersaving device
   description: ""
-  mode: single
+  mode: queued
+  max: 20
   trigger:
     - platform: event
       event_type: state_changed
