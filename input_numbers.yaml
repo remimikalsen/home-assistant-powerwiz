@@ -1,8 +1,8 @@
 powerwiz_limiter_max_allowed_consumption:
-  name: Try to keep power consumption below this threshold
-  max: 20000
-  min: 2000
-  step: 500
+  name: Try to keep power consumption below this kWh threshold
+  max: 20
+  min: 2
+  step: 1
   mode: slider
 powerwiz_limiter_todays_top_hourly_consumption:
   name: Power consumption during todays most power hungry hour
