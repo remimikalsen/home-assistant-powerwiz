@@ -8,13 +8,8 @@
       seconds: "59"
   condition: []
   variables:
-    max3:
-      "{% set max3 = states('input_text.powerwiz_limiter_top_3_hours_current_month') %} 
-       {{ ('[]' if (max3 == 'unknown' or states.input_text.powerwiz_limiter_top_3_hours_current_month.last_updated.month != now().month) else max3)|from_json }}"
-    today_max:
-      "{% set today = states('input_number.powerwiz_limiter_todays_top_hourly_consumption')|float(default=0)
-       if now().hour > 0 else 0 %} {% set this_hour = states('sensor.powerwiz_hour')|float(default=0) %} 
-       {{ ([ today, this_hour ]|sort(1))[0]|round(3) }}"
+    max3: '{% set max3 = states(''input_text.powerwiz_limiter_top_3_hours_current_month'') %} {{ (''[]'' if (max3 == ''unknown'' or states.input_text.powerwiz_limiter_top_3_hours_current_month.last_updated.month != now().month) else max3)|from_json }}'
+    today_max: '{% set today = states(''input_number.powerwiz_limiter_todays_top_hourly_consumption'')|float(default=0) if now().hour > 0 else 0 %} {% set this_hour = states(''sensor.powerwiz_hour'')|float(default=0)  %} {{ ([ today, this_hour ]|sort(1))[0]|round(1) }}'
   action:
     - service: input_number.set_value
       data:
@@ -59,8 +54,7 @@
     - repeat:
         while:
           - condition: template
-            value_template: >
-              {{ (states.sensor.powerwiz_hour_estimate.state|float) > (states.input_number.powerwiz_limiter_max_allowed_consumption.state|float - 100.0) or (states.sensor.powerwiz_limiter_top_3_hours_current_month_estimated_average.state|float* 1000) > (states.input_number.powerwiz_limiter_max_allowed_consumption.state|float - 100.0) }}
+            value_template: '{{ (states.sensor.powerwiz_hour_estimate.state|float) > (states.input_number.powerwiz_limiter_max_allowed_consumption.state|float - 0.1) or (states.sensor.powerwiz_limiter_top_3_hours_current_month_estimated_average.state|float) > (states.input_number.powerwiz_limiter_max_allowed_consumption.state|float - 0.1) }}'
           - condition: template
             value_template: "{{ (states.sensor.powerwiz_limiters.state|float(default=0.0)) > 0 }}"
           - condition: template
