@@ -46,12 +46,12 @@ sensor:
   - name: powerwiz_hour_estimate
     unit_of_measurement: "kWh"
     state: >
-      {{ states('sensor.estimated_consumption_current_hour_tomasjordvegen_129')|int(default=0) }}
+      {{ states('sensor.estimated_consumption_current_hour_tomasjordvegen_129')|float(default=0.0)|round(1) }}
 
   - name: powerwiz_hour
     unit_of_measurement: "kWh"
     state: >
-      {{ states('sensor.accumulated_consumption_current_hour_tomasjordvegen_129')|int(default=0) }}
+      {{ states('sensor.accumulated_consumption_current_hour_tomasjordvegen_129')|float(default=0.0)|round(1) }}
 
   - name: powerwiz_limiters
     unit_of_measurement: W
@@ -86,7 +86,7 @@ sensor:
       {% for i in range (max3|length) %}
       {%   set v.sum = v.sum + max3[i] %}
       {% endfor %}
-      {{ (v.sum / max3|length)|round(3) }}
+      {{ (v.sum / max3|length)|round(1) }}
 
   - name: Powerwiz saver median cheapest
     unique_id: powerwiz_saver_median_cheapest
