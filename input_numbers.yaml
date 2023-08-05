@@ -4,6 +4,12 @@ powerwiz_limiter_max_allowed_consumption:
   min: 2
   step: 1
   mode: slider
+powerwiz_limiter_max_allowed_consumption_margin:
+  name: Power consumption margin in kWh
+  max: 1
+  min: 0
+  step: 0.1
+  mode: slider
 powerwiz_limiter_todays_top_hourly_consumption:
   name: Power consumption during todays most power hungry hour
   max: 20
@@ -28,6 +34,12 @@ powerwiz_saver_number_of_expensive_hours:
   min: 0
   step: 1
   mode: slider
+powerwiz_booster_number_of_cheap_hours:
+  name: Number of cheapest hours per day to turn on powerbooster enabled devices
+  max: 12
+  min: 0
+  step: 1
+  mode: slider
 powerwiz_saver_threshold_percent:
   name: Percent threshold before saving (compared to median cheapest hours price)
   max: 200
@@ -40,3 +52,15 @@ powerwiz_saver_threshold_currency:
   min: 0
   step: 0.01
   mode: box
+powerwiz_booster_threshold_percent:
+  name: Ignore boost plan if current saving is below threshold (compared to median cheapest hours price)
+  max: 200
+  min: 0
+  step: 5
+  mode: box
+powerwiz_booster_threshold_currency:
+  name: Ignore boost plan if current saving is below threshold (compared to median cheapest hours price)
+  max: 5
+  min: 0
+  step: 0.001
+  mode: box  
