@@ -1,101 +1,179 @@
-square: false
-columns: 2
-type: grid
-cards:
-  - type: vertical-stack
-    title: Powersaver
-    cards:
-      - type: entities
-        title: Config
-        entities:
-          - entity: input_number.powerwiz_saver_number_of_expensive_hours
-            name: Powersaving hours
-          - entity: input_number.powerwiz_saver_threshold_percent
-            name: Activate when saving more than %
-          - entity: input_number.powerwiz_saver_threshold_currency
-            name: and more than NOK
-          - entity: input_number.powerwiz_min_minutes_on
-            name: Powerwiz immunity (minutes)
-      - type: entities
-        title: Stats
-        entities:
-          - entity: binary_sensor.powerwiz_saver_recommended
-            name: Powersaving recommended
-          - entity: binary_sensor.powerwiz_saver_within_expensive_hours
-            name: Within expensive hours?
-          - entity: sensor.powerwiz_saver_median_cheapest
-            name: Median of cheapest hours
-          - entity: sensor.powerwiz_saver_current_hour
-            name: Current hour
-          - entity: sensor.powerwiz_saver_most_expensive_hours_price
-            name: Expensive hours
-      - type: entities
-        title: Devices
-        entities:
-          - entity: input_boolean.switch_boiler_powerwiz_saver
-            secondary_info: >-
-              {{ states('sensor.boiler_power') ~ " W (" ~
-              states("switch.boiler") ~ ")"  }}
-          - entity: input_boolean.climate_living_room_powerwiz_saver
-            secondary_info: >-
-              {{ states('sensor.convector_heater_living_room') ~ " W (" ~
-              states("climate.living_room") ~ ")"  }}
-  - type: vertical-stack
-    title: Power limiter
-    cards:
-      - type: entities
-        title: Config
-        entities:
-          - entity: input_number.powerwiz_limiter_max_allowed_consumption
-            name: Energy limit (kWh)
-          - entity: input_number.powerwiz_limiter_max_minutes_off
-            name: Duration to limit devices (minutes)
-          - entity: input_number.powerwiz_min_minutes_on
-            name: Powerwiz immunity (minutes)
-      - type: entities
-        title: Stats
-        entities:
-          - entity: sensor.powerwiz_hour
-            name: Consumption so far this hour
-          - entity: sensor.powerwiz_hour_estimate
-            name: Estimated consumption current hour
-          - entity: input_number.powerwiz_limiter_todays_top_hourly_consumption
-            name: Max consuming hour today
-          - entity: input_text.powerwiz_limiter_top_3_hours_current_month
-            name: Max 3 hours this month (kW)
-          - entity: >-
-              sensor.powerwiz_limiter_top_3_hours_current_month_estimated_average
-            name: Max 3 hours average this month (kWh)
-      - type: entities
-        title: Devices
-        entities:
-          - entity: input_boolean.switch_boiler_powerwiz_limiter
-            secondary_info: >-
-              {{ states('sensor.boiler_power') ~ " W (" ~
-              states("switch.boiler") ~ ")"  }}
-          - entity: input_boolean.climate_living_room_powerwiz_limiter
-            secondary_info: >-
-              {{ states('sensor.convector_heater_living_room') ~ " W (" ~
-              states("climate.living_room") ~ ")"  }}  - type: vertical-stack
-    cards:
-      - type: entities
-        title: Live
-        entities:
-          - name: Total
-            entity: sensor.powerwiz_current_usage
-          - name: Limiter
-            entity: sensor.powerwiz_limiters
-          - name: Powersaver
-            entity: sensor.powerwiz_savers
-          - name: Monitored only
-            entity: sensor.powerwiz_monitored
-  - type: vertical-stack
-    cards:
-      - type: entities
-        title: Monitored devices
-        entities:
-          - sensor.washing_machine_power
-          - sensor.washing_machine_power
-          - sensor.dryer_power
-          - sensor.ups_1_power
-          - sensor.ups_2_power
+action: fire-dom-event
+browser_mod:
+  service: browser_mod.popup
+  data:
+    size: wide
+    title: Powerwiz
+    content:
+      type: custom:layout-card
+      layout_type: custom:horizontal-layout
+      layout:
+        max_cols: 3
+      cards:
+        - type: vertical-stack
+          title: Status
+          cards:
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power limiter
+                - entity: binary_sensor.powerwiz_limiting_recommended
+                  name: Power limiting på
+                - entity: sensor.powerwiz_hour_estimate
+                  name: Estimert forbruk/time
+                - entity: input_text.powerwiz_limiter_top_3_hours_current_month
+                  name: Topp 3 timer/mnd (kW)
+                - entity: sensor.powerwiz_limiter_top_3_hours_current_month_estimated_average
+                  name: Estimert snitt/mnd (kWh)
+            - type: custom:auto-entities
+              filter:
+                include:
+                  - entity_id: input_boolean.*_powerwiz_limiter
+                    state: "on"
+              show_empty: false
+              card:
+                type: entities
+                show_state: false
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power saver
+                - entity: binary_sensor.powerwiz_saver_recommended
+                  name: Power saving
+            - type: custom:auto-entities
+              filter:
+                include:
+                  - entity_id: input_boolean.*_powerwiz_saver
+                    state: "on"
+              show_empty: false
+              card:
+                type: entities
+                show_state: false
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Varmtvannsbereder power saver
+                - entity: binary_sensor.powerwiz_boiler_saving_recommended
+                  name: Power saving
+            - type: entities
+              entities:
+                - entity: switch.boiler
+                  secondary_info: >-
+                    {{ states('sensor.boiler_power') ~ " W
+                    (" ~ states("switch.boiler") ~ ")"  }}
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power booster
+                - entity: binary_sensor.powerwiz_booster_boosting_recommended
+                  name: Power boosting på
+            - type: entities
+              entities:
+                - entity: switch.easee_home_NNNNN_is_enabled
+                  secondary_info: >-
+                    {{ states('sensor.elbil_lader_power') ~ " kWh (" ~
+                    states("sensor.elbil_lader_status") ~ ")"  }}
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Live power usage
+                - name: Total
+                  entity: sensor.powerwiz_current_usage
+                - name: Monitored
+                  entity: sensor.powerwiz_monitored
+                - name: Limitable power
+                  entity: sensor.powerwiz_limiters
+                - name: Boosted power
+                  entity: sensor.powerwiz_boosters
+                - name: Powersavers
+                  entity: sensor.powerwiz_savers
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Monitored devices
+                - sensor.some_monitored_devices
+        - type: vertical-stack
+          title: Config
+          cards:
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power limiter
+                - entity: input_number.powerwiz_limiter_max_allowed_consumption
+                  name: Power limit (kWh)
+                - entity: input_number.powerwiz_limiter_max_allowed_consumption_margin
+                  name: Safety margin (kWh)
+                - entity: input_number.powerwiz_limiter_max_minutes_off
+                  name: Duration (minutes)
+                - entity: input_number.powerwiz_min_minutes_on
+                  name: Immunity (minutes)
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power saver
+                - entity: input_number.powerwiz_saver_number_of_expensive_hours
+                  name: Power saving hours
+                - entity: input_number.powerwiz_saver_threshold_percent
+                  name: and save more than %
+                - entity: input_number.powerwiz_saver_threshold_currency
+                  name: and more than NOK
+                - entity: input_number.powerwiz_min_minutes_on
+                  name: Immunity (minutes)
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Varmtvannsbereder power saver
+                - entity: >-
+                    input_boolean.switch_boiler_powerwiz_saver_enabled
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power booster
+                - entity: input_number.powerwiz_booster_number_of_cheap_hours
+                  name: Power boosting hours
+                - entity: input_number.powerwiz_booster_threshold_percent
+                  name: or save less than %
+                - entity: input_number.powerwiz_booster_threshold_currency
+                  name: or less than NOK
+                - entity: >-
+                    input_boolean.switch_easee_home_NNNNN_is_enabled_powerwiz_booster_enabled
+        - type: vertical-stack
+          title: Devices
+          cards:
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power limiter
+                - entity: >-
+                    input_boolean.switch_boiler_powerwiz_limiter
+                  secondary_info: >-
+                    {{ states('sensor.boiler_power') ~ " W
+                    (" ~ states("switch.boiler") ~ ")"  }}
+                - entity: input_boolean.climate_living_room_powerwiz_limiter
+                  secondary_info: >-
+                    {{ states('sensor.convector_heater_living_room_power') ~ " W (" ~
+                    states("climate.living_room") ~ ")"  }}
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power saver
+                - entity: input_boolean.climate_living_room_powerwiz_saver
+                  secondary_info: >-
+                    {{ states('sensor.convector_heater_living_room_power') ~ " W (" ~
+                    states("climate.living_room") ~ ")"  }}
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Varmtvannsbereder power saver
+                - entity: switch.boiler
+                  secondary_info: >-
+                    {{ states('sensor.boiler_power') ~ " W
+                    (" ~ states("switch.boiler") ~ ")"  }}
+            - type: entities
+              entities:
+                - type: custom:text-divider-row
+                  text: Power booster
+                - entity: switch.easee_home_NNNNN_is_enabled
+                  secondary_info: >-
+                    {{ states('sensor.elbil_lader_power') ~ " kWh (" ~
+                    states("sensor.elbil_lader_status") ~ ")"  }}
