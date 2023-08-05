@@ -145,7 +145,6 @@
         target:
           entity_id: >
             {% set power_savers = {
-                    'sensor.boiler_power': 'switch.boiler',
                     'sensor.convector_heater_living_room_power': 'climate.living_room' } %}
             {% set warmup_duration = states('input_number.powerwiz_min_minutes_on')|int(default=0) %} 
             {% set warmup_ok = now() - timedelta(minutes = warmup_duration) %} 
@@ -288,3 +287,47 @@
       device_id: <yourid>
       action_command: pause
   mode: single
+  
+- id: '1635193801943'
+  alias: PowerWiz power saver boiler ended
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.powerwiz_boiler_saving_recommended
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+  condition:
+  - condition: state
+    entity_id: input_boolean.switch_boiler_powerwiz_saver_enabled
+    state: 'on'
+  action:
+  - service: homeassistant.turn_on
+    target:
+      entity_id:
+      - switch.boiler
+    data: {}
+  mode: single
+- id: '1635187307145'
+  alias: PowerWiz power saver boiler started
+  mode: single
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.powerwiz_boiler_saving_recommended
+    from: 'off'
+    to: 'on'
+    for: 00:00:05
+  condition:
+  - condition: state
+    entity_id: input_boolean.switch_boiler_powerwiz_saver_enabled
+    state: 'on'
+  action:
+  - service: homeassistant.turn_off
+    target:
+      entity_id:
+      - switch.boiler 
