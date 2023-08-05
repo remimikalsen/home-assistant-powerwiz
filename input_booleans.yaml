@@ -10,3 +10,6 @@ switch_boiler_powerwiz_saver:
 climate_living_room_powerwiz_saver:
   name: Convector heater living room (saver)
   icon: mdi:home-lightning-bolt-outline
+switch_easee_home_NNNNN_is_enabled_powerwiz_booster_enabled:
+  name: Boost Easee lader
+  icon: mdi:home-lightning-bolt-outline  
