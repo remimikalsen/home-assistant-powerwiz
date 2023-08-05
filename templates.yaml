@@ -1,9 +1,8 @@
-binary_sensor:
-  - name: Powerwiz saver within expensive hours
+- name: Powerwiz saver within expensive hours
     unique_id: powerwiz_saver_within_expensive_hours
     state: >
       {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
-      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
+      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
       {% set expensive_hour = expensive_hours |selectattr('start', '<=', now()) | selectattr('end', '>=', now()) |list %}
       {% set expensive_hour_bool = expensive_hour |length > 0 %}
       {{ expensive_hour_bool }}
@@ -13,7 +12,7 @@ binary_sensor:
     state: >
       {% set aux = states("sensor.time") %}
       {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
-      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
+      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
       {% set expensive_hour = expensive_hours |selectattr('start', '<=', now()) | selectattr('end', '>=', now()) |list %}
       {% set expensive_hour_bool = expensive_hour |length > 0 %}
 
@@ -21,9 +20,9 @@ binary_sensor:
         {% set saving_threshold_percent = (states.input_number.powerwiz_saver_threshold_percent.state |float(default=5.0)) / 100.0 %}
         {% set saving_threshold_currency = states.input_number.powerwiz_saver_threshold_currency.state |float(default=0.1) %}
         {% set non_power_saving_hours = 24-power_saving_hours %}
-        {% set cheap_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value'))[:non_power_saving_hours] %}
+        {% set cheap_hours = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today')|sort(attribute='value'))[:non_power_saving_hours] %}
         {% set mean_cheap_price = (cheap_hours |map(attribute='value')|list)[(cheap_hours|length / 2)|int] %}
-        {% set expensive_hour_cost = (expensive_hour |map(attribute='value')|list)[0]|float(default=0) %}
+        {% set expensive_hour_cost = (expensive_hour |map(attribute='value')|list)[0]|float(default=0.0) %}
         {% set expensive_hour_above_threshold_percent = (expensive_hour_cost / mean_cheap_price) > (1.0 + saving_threshold_percent) %}
         {% set expensive_hour_above_threshold_currency = (expensive_hour_cost - saving_threshold_currency) > mean_cheap_price  %}
         {{ expensive_hour_bool and expensive_hour_above_threshold_percent and expensive_hour_above_threshold_currency }}
@@ -34,53 +33,162 @@ binary_sensor:
   - name: Powerwiz power being reduced
     unique_id: powerwiz_power_being_reduced
     state: >
-      {{ (states |selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_limiter') |selectattr('state', 'in', 'on')|list)|length > 0 or (states |selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_saver') |selectattr('state', 'in', 'on')|list)|length > 0}}
+      {{ (states |selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_limiter$') |selectattr('state', 'in', 'on')|list)|length > 0 or (states |selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_saver$') |selectattr('state', 'in', 'on')|list)|length > 0}}
 
-sensor:
+  - name: Powerwiz booster boosting recommended
+    unique_id: powerwiz_booster_boosting_recommended
+    state: >
+      {% set boosting_hours = states.input_number.powerwiz_booster_number_of_cheap_hours.state |int(default=3) %}
+      {% set cheap_hours = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today')|sort(attribute='value'))[:boosting_hours] %}
+      {% set cheap_hour = cheap_hours |selectattr('start', '<=', now()) | selectattr('end', '>=', now()) |list %}
+      {% set cheap_hour_bool = cheap_hour |length > 0 %}
+
+      {% if not cheap_hour_bool %}
+        {% set saving_threshold_percent = (states.input_number.powerwiz_booster_threshold_percent.state |float(default=5.0)) / 100.0 %}
+        {% set saving_threshold_currency = states.input_number.powerwiz_booster_threshold_currency.state |float(default=0.1) %}
+        {% set non_boosting_hours = 24-boosting_hours %}
+        {% set mean_cheap_price = (cheap_hours |map(attribute='value')|list)[(cheap_hours|length / 2)|int] %}
+        {% set price_below_threshold_percent = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'current_price')|float(default=0.0) / mean_cheap_price) < (1.0 + saving_threshold_percent) %}
+        {% set price_below_threshold_currency = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'current_price')|float(default=0.0) - saving_threshold_currency) < mean_cheap_price  %}
+        {{ price_below_threshold_percent or price_below_threshold_currency }}
+      {% else %}
+        True
+      {% endif %}
+
+  - name: Powerwiz limiting active
+    unique_id: powerwiz_limiter_active
+    state: >
+      {{ states |selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_limiter$')|selectattr('state', 'in', 'on') |list |length > 0 }}
+
+  - name: Powerwiz saving active
+    unique_id: powerwiz_saver_active
+    state: >
+      {{ states('binary_sensor.powerwiz_boiler_saving_recommended') == 'on' or states |selectattr('entity_id', 'search', 'input_boolean.*_powerwiz_saver$')|selectattr('state', 'in', 'on') |list |length > 0 }}
+
+  - name: Powerwiz limiting recommended
+    unique_id: powerwiz_limiter_recommended
+    state: >
+      {{ ((states.sensor.powerwiz_hour_estimate.state|float(default=0.0)) > (states.input_number.powerwiz_limiter_max_allowed_consumption.state|float(default=0.0)- states.input_number.powerwiz_limiter_max_allowed_consumption_margin.state|float(default=0.0))) or ((states.sensor.powerwiz_limiter_top_3_hours_current_month_estimated_average.state|float(default=0.0)) > (states.input_number.powerwiz_limiter_max_allowed_consumption.state|float(default=0.0)- states.input_number.powerwiz_limiter_max_allowed_consumption_margin.state|float(default=0.0)) and (states.sensor.powerwiz_limiter_top_3_hours_current_month_estimated_average.state|float(default=0.0)) > (states.sensor.powerwiz_limiter_top_3_hours_current_month_average.state|float(default=0.0))) }}
+
+  - name: Powerwiz boiler saving recommended
+    unique_id: powerwiz_boiler_saving_recommended
+    icon: mdi:cash
+    state: >
+      {% set today_tomorrow = state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today') + state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_tomorrow') %}
+      {% set hour = now().hour %}
+      {% if hour >= 0 and hour < 8 %}
+        {% set from = 0 %}
+        {% set to = 8 %}
+      {% elif hour >= 8 and hour < 15 %}
+        {% set from = 8 %}
+        {% set to = 15 %}
+      {% elif hour >= 15 and hour < 21 %}
+        {% set from = 15 %}
+        {% set to = 21 %}
+      {% elif hour >= 21 and hour < 24 %}
+        {% set from = 21 %}
+        {% set to = 32 %}
+      {% endif %}
+      {% set max_price = (today_tomorrow[from:to]| sort(attribute='value', reverse=True)|map(attribute='value')|list)[2] %}
+      {{ max_price |float(default=0.0) < states('sensor.nordpool_kwh_tromso_nok_3_10_0')|float(default=0.0) }}
+
   - name: powerwiz_current_usage
+    icon: mdi:lightning-bolt
     unit_of_measurement: W
     device_class: power
     state: >
-      {{ states('sensor.power_tomasjordvegen_129')|int(default=0) }}
+      {{ states('sensor.kamstrup_active_power_import')|int(default=0.0) }}
 
   - name: powerwiz_hour_estimate
+    icon: mdi:lightning-bolt
     unit_of_measurement: "kWh"
     state: >
-      {{ states('sensor.estimated_consumption_current_hour_tomasjordvegen_129')|float(default=0.0)|round(1) }}
+      {{ (states('sensor.powerwiz_hourly_energy_consumption')|float(default=0.0)|round(1) + (states('sensor.kamstrup_active_power_import')|int(default=0.0) * ((60 - now().minute) / 60))/1000)|round(1) }}
+
+  - name: powerwiz_month_estimate
+    icon: mdi:lightning-bolt
+    unit_of_measurement: "kWh"
+    state: >
+      {% set day_adjustment = now().hour / 24 %}
+      {% set this = now() %}
+      {% set first = this.replace(day=1) %}
+      {% set days_passed = (this.date() - first.date()).days + 1 + day_adjustment %}
+      {% set next_month = this.month + 1 if this.month + 1 <= 12 else 1 %}
+      {% set next_year = this.year + 1 if this.month == 12 else this.year %}
+      {% set last = this.replace(year=next_year, month=next_month, day=1) %}
+      {% set days_left = (last.date() - this.date()).days - 1 - day_adjustment %}
+      {% set monthly_estimate = ((1500.0 + states('sensor.powerwiz_monthly_energy_consumption')|float(default=0.0)) / days_passed) * (days_passed + days_left) %}
+      {{ monthly_estimate |float(default=0.0)|round(3) }}
 
   - name: powerwiz_hour
+    icon: mdi:lightning-bolt
     unit_of_measurement: "kWh"
     state: >
-      {{ states('sensor.accumulated_consumption_current_hour_tomasjordvegen_129')|float(default=0.0)|round(1) }}
+      {{ states('sensor.powerwiz_hourly_energy_consumption')|float(default=0.0)|round(1) }}
 
   - name: powerwiz_limiters
     unit_of_measurement: W
+    icon: mdi:lightning-bolt
     device_class: power
     state: >
-      {{ states('sensor.boiler_power')|int(default=0)
-        + states('sensor.convector_heater_living_room_power')|int(default=0) }}
+      {{ states('sensor.boiler_power')|int(default=0.0)
+        + states('sensor.convector_heater_living_room_power')|int(default=0.0) }}
+
+  - name: powerwiz_boosters
+    unit_of_measurement: W
+    icon: mdi:lightning-bolt
+    device_class: power
+    state: >
+      {{ states('sensor.elbil_lader_power')|float(default=0.0) * 1000 }}
 
   - name: powerwiz_savers
     unit_of_measurement: W
+    icon: mdi:lightning-bolt
     device_class: power
     state: >
-      {{ states('sensor.boiler_power')|int(default=0)
-        + states('sensor.convector_heater_living_room_power')|int(default=0) }}
+      {{ states('sensor.boiler_power')|int(default=0.0)
+        + states('sensor.convector_heater_living_room_power')|int(default=0.0) }}
 
   - name: powerwiz_monitored
     unit_of_measurement: W
+    icon: mdi:lightning-bolt
     device_class: power
     state: >
-      {{ states('sensor.washing_machine_power')|int(default=0)
-        + states('sensor.dryer_power')|int(default=0)
-        + states('sensor.ups_1_power')|int(default=0)
-        + states('sensor.ups_2_power')|int(default=0) }}
+      {{ states('sensor.boiler_power')|int(default=0.0)
+        + states('sensor.convector_heater_living_room_power')|int(default=0.0)
+        + states('sensor.elbil_lader_power')|float(default=0.0) * 1000 }}
+
+  - name: powerwiz_non_controllable
+    unit_of_measurement: W
+    icon: mdi:lightning-bolt
+    device_class: power
+    state: >
+      {{ states('sensor.powerwiz_current_usage')|int(default=0.0) - states('sensor.powerwiz_limiters')|int(default=0.0) }}
+
+  - name: powerwiz_unmonitored
+    unit_of_measurement: W
+    icon: mdi:lightning-bolt
+    device_class: power
+    state: >
+      {{ states('sensor.powerwiz_current_usage')|int(default=0.0) - states('sensor.powerwiz_limiters')|int(default=0.0) - states('sensor.powerwiz_monitored')|int(default=0.0) }}
+
+  - name: powerwiz_limiter_top_3_hours_current_month_average
+    unit_of_measurement: "kWh"
+    icon: mdi:lightning-bolt
+    state: >
+      {% set max3 = states('input_text.powerwiz_limiter_top_3_hours_current_month')|from_json %}
+      {% set v = namespace (sum=0) %}
+      {% for i in range (max3|length) %}
+      {%   set v.sum = v.sum + max3[i] %}
+      {% endfor %}
+      {{ (v.sum / max3|length)|round(1) }}
 
   - name: powerwiz_limiter_top_3_hours_current_month_estimated_average
     unit_of_measurement: "kWh"
+    icon: mdi:lightning-bolt
     state: >
       {% set max3 = states('input_text.powerwiz_limiter_top_3_hours_current_month')|from_json %}
-      {% set now = states.sensor.powerwiz_hour_estimate.state|float %}
+      {% set now = states.sensor.powerwiz_hour_estimate.state|float(default=0.0)%}
       {% set max3 = ((max3 + [now])|sort(1))[:3] %}
       {% set v = namespace (sum=0) %}
       {% for i in range (max3|length) %}
@@ -90,31 +198,90 @@ sensor:
 
   - name: Powerwiz saver median cheapest
     unique_id: powerwiz_saver_median_cheapest
+    icon: mdi:cash
     state: >
       {% set aux = states("sensor.time") %}
       {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
       {% set non_power_saving_hours = 24-power_saving_hours %}
-      {% set cheap_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value'))[:non_power_saving_hours] %}
+      {% set cheap_hours = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today')|sort(attribute='value'))[:non_power_saving_hours] %}
       {% set median_cheap_price = (cheap_hours |map(attribute='value')|list)[(cheap_hours|length / 2)|int] %}
       {{ median_cheap_price }}
 
   - name: Powerwiz saver current_hour
     unique_id: powerwiz_saver_current_hour
+    icon: mdi:cash
     state: >
       {% set aux = states("sensor.time") %}
-      {% set current_hour = state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today') |selectattr('start', '<=', now()) |selectattr('end', '>=', now()) |map(attribute='value') |list %}
+      {% set current_hour = state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today') |selectattr('start', '<=', now()) |selectattr('end', '>=', now()) |map(attribute='value') |list %}
       {% if current_hour |length > 0 %}
       {{ current_hour[0] }}
       {% endif  %}
 
   - name: Powerwiz saver most expensive hours price
     unique_id: powerwiz_saver_most_expensive_hours_price
+    icon: mdi:cash
     state: >
       {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
-      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_<YOURDETAILSHERE>', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
+      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
+      {% set expensive_hours = expensive_hours|sort(attribute='start') %}
       {% set hours = namespace(list="") %}
       {% for result in expensive_hours %}
         {% if hours.list != "" %} {% set hours.list = hours.list ~ ", " %} {% endif %}
         {% set hours.list = hours.list ~ result.value ~ ' NOK (' ~ result.start.strftime("%H") ~ '-' ~ result.end.strftime("%H") ~ ')' %}
       {% endfor %}
       {{ hours.list }}
+
+  - name: Powerwiz saver most expensive hours price tomorrow
+    unique_id: powerwiz_saver_most_expensive_hours_price_tomorrow
+    icon: mdi:cash
+    state: >
+      {% set power_saving_hours = states.input_number.powerwiz_saver_number_of_expensive_hours.state |int(default=3) %}
+      {% set expensive_hours = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_tomorrow')|sort(attribute='value', reverse = True))[:power_saving_hours] %}
+      {% set expensive_hours = expensive_hours|sort(attribute='start') %}
+      {% set hours = namespace(list="") %}
+      {% for result in expensive_hours %}
+        {% if hours.list != "" %} {% set hours.list = hours.list ~ ", " %} {% endif %}
+        {% set hours.list = hours.list ~ result.value ~ ' NOK (' ~ result.start.strftime("%H") ~ '-' ~ result.end.strftime("%H") ~ ')' %}
+      {% endfor %}
+      {{ hours.list }}
+
+  - name: Powerwiz saver booster hours price
+    unique_id: powerwiz_saver_booster_hours_price
+    icon: mdi:cash
+    state: >
+      {% set booster_hours = states.input_number.powerwiz_booster_number_of_cheap_hours.state |int(default=3) %}
+      {% set booster_hour_list = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_today')|sort(attribute='value'))[:booster_hours] %}
+      {% set booster_hour_list = booster_hour_list|sort(attribute='start') %}      
+      {% set hours = namespace(list="") %}
+      {% for result in booster_hour_list %}
+        {% if hours.list != "" %} {% set hours.list = hours.list ~ ", " %} {% endif %}
+        {% set hours.list = hours.list ~ result.value ~ ' NOK (' ~ result.start.strftime("%H") ~ '-' ~ result.end.strftime("%H") ~ ')' %}
+      {% endfor %}
+      {{ hours.list }}
+
+  - name: Powerwiz saver booster hours price tomorrow
+    unique_id: powerwiz_saver_booster_hours_price_tomorrow
+    icon: mdi:cash
+    state: >
+      {% set booster_hours = states.input_number.powerwiz_booster_number_of_cheap_hours.state |int(default=3) %}
+      {% set booster_hour_list = (state_attr('sensor.nordpool_kwh_tromso_nok_3_10_0', 'raw_tomorrow')|sort(attribute='value'))[:booster_hours] %}
+      {% set booster_hour_list = booster_hour_list|sort(attribute='start') %}      
+      {% set hours = namespace(list="") %}
+      {% for result in booster_hour_list %}
+        {% if hours.list != "" %} {% set hours.list = hours.list ~ ", " %} {% endif %}
+        {% set hours.list = hours.list ~ result.value ~ ' NOK (' ~ result.start.strftime("%H") ~ '-' ~ result.end.strftime("%H") ~ ')' %}
+      {% endfor %}
+      {{ hours.list }}
+
+  - name: Powerwiz limiter state
+    unique_id: powerwiz_limiter_state
+    state: >
+      {% set recommended = is_state('binary_sensor.powerwiz_limiting_recommended', 'on') %}
+      {% set active = is_state('binary_sensor.powerwiz_power_being_reduced', 'on') %}
+      {% if active and recommended %}
+      {{ "reducing" }}
+      {% elif active and not recommended %}
+      {{ "reduced" }}
+      {% else %}
+      {{ "inactive" }}
+      {% endif %}
