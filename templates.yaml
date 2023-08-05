@@ -285,3 +285,8 @@
       {% else %}
       {{ "inactive" }}
       {% endif %}
+
+  - name: Elbil lader connected to car
+    unique_id: elbil_lader_connected_to_car
+    state: >
+      {{ states('sensor.elbil_lader_status') != "disconnected"  }}
