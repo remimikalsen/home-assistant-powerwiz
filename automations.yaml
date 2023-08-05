@@ -228,3 +228,63 @@
     target:
       entity_id: '{{ trigger.event.data.entity_id.split(''input_boolean.'')[1].split(''_powerwiz_limiter'')[0].split(''_powerwiz_saver'')[0]|replace(''_'',
         ''.'', 1) }}'
+        
+- id: '1635193807130'
+  alias: Initiate power boosting Easee
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.powerwiz_booster_boosting_recommended
+    from: 'off'
+    to: 'on'
+  - platform: state
+    entity_id:
+    - binary_sensor.elbil_lader_connected_to_car
+    from: 'off'
+    to: 'on'
+  condition:
+  - condition: state
+    entity_id: binary_sensor.powerwiz_booster_boosting_recommended
+    state: 'on'
+  - condition: state
+    entity_id: input_boolean.switch_easee_home_NNNNN_is_enabled_powerwiz_booster_enabled
+    state: 'on'
+  - condition: state
+    entity_id: binary_sensor.elbil_lader_connected_to_car
+    state: 'on'
+  action:
+  - service: easee.action_command
+    data:
+      device_id: <yourid>
+      action_command: resume
+  mode: single
+- id: '1635193807145'
+  alias: Stop power boosting Easee
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.powerwiz_booster_boosting_recommended
+    from: 'on'
+    to: 'off'
+    for: 00:00:05
+  - platform: state
+    entity_id:
+    - binary_sensor.elbil_lader_connected_to_car
+    from: 'off'
+    to: 'on'
+  condition:
+  - condition: state
+    entity_id: binary_sensor.powerwiz_booster_boosting_recommended
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.switch_easee_home_NNNNN_is_enabled_powerwiz_booster_enabled
+    state: 'on'
+  - condition: state
+    entity_id: binary_sensor.elbil_lader_connected_to_car
+    state: 'on'
+  action:
+  - service: easee.action_command
+    data:
+      device_id: <yourid>
+      action_command: pause
+  mode: single
